@@ -11,4 +11,7 @@ urlpatterns = [
     path('deny/<str:token>/', views.deny_request),
     path('verify-token/<str:token>/', views.verify_token),
     path('setup-account/', views.setup_account),
+    path('forgot-password/', views.forgot_password),
+    path('verify-reset-token/<str:token>/', views.verify_reset_token),
+    path('reset-password/', views.reset_password),
 ]
