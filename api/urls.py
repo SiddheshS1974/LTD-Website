@@ -14,4 +14,10 @@ urlpatterns = [
     path('forgot-password/', views.forgot_password),
     path('verify-reset-token/<str:token>/', views.verify_reset_token),
     path('reset-password/', views.reset_password),
+    path('logout/', views.logout_view),
+    path('users/', views.user_list),
+    path('users/<int:pk>/delete/', views.delete_user),
+    path('users/<int:pk>/role/', views.change_user_role),
+    path('hgi-codes/', views.hgi_codes_list),
+    path('hgi-codes/<int:pk>/', views.hgi_code_detail),
 ]
