@@ -110,3 +110,6 @@ DEFAULT_FROM_EMAIL = os.environ.get('EMAIL_HOST_USER', 'ltd4431@gmail.com')
 
 AUTH_USER_MODEL = 'api.CustomUser'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:8000')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')

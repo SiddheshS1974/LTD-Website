@@ -1,9 +1,9 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.db.models import Q
 from students.models import Student
 from .serializers import StudentSerializer, CustomUserSerializer, ValidHGICodeSerializer
-from .models import CustomUser
+from .models import CustomUser, PendingUser, ValidHGICode
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -16,8 +16,6 @@ from django.core.mail import send_mail
 from django.conf import settings
 import uuid
 import re
-from .models import CustomUser, PendingUser, ValidHGICode
-from django.shortcuts import redirect
 
 @api_view(['GET','POST'])
 def studentsView(request):
@@ -124,8 +122,8 @@ def register_request(request):
         token=token
     )
 
-    approve_url = f"http://localhost:8000/api/v1/approve/{token}/"
-    deny_url = f"http://localhost:8000/api/v1/deny/{token}/"
+    approve_url = f"{settings.BACKEND_URL}/api/v1/approve/{token}/"
+    deny_url = f"{settings.BACKEND_URL}/api/v1/deny/{token}/"
 
     try:
         send_mail(
@@ -146,13 +144,13 @@ def approve_request(request, token):
     try:
         pending_user = PendingUser.objects.get(token=token)
     except PendingUser.DoesNotExist:
-        return redirect("http://localhost:5173/denied")
+        return redirect(f"{settings.FRONTEND_URL}/denied")
 
     # Mark as approved so deny link becomes invalid
     pending_user.is_approved = True
     pending_user.save()
 
-    setup_url = f"http://localhost:5173/setup-account/{token}"
+    setup_url = f"{settings.FRONTEND_URL}/setup-account/{token}"
     send_mail(
         subject="Your account has been approved!",
         message=f"Hi {pending_user.first_name},\n\nYour account has been approved! Click the link below to create your username and password:\n\n{setup_url}",
@@ -160,7 +158,7 @@ def approve_request(request, token):
         recipient_list=[pending_user.email],
     )
 
-    return redirect("http://localhost:5173/approved")
+    return redirect(f"{settings.FRONTEND_URL}/approved")
 
 
 
@@ -169,7 +167,7 @@ def deny_request(request, token):
     try:
         pending_user = PendingUser.objects.get(token=token, is_approved=False)
     except PendingUser.DoesNotExist:
-        return redirect("http://localhost:5173/approved")
+        return redirect(f"{settings.FRONTEND_URL}/approved")
 
     send_mail(
         subject="Your account request has been denied",
@@ -180,7 +178,7 @@ def deny_request(request, token):
 
     pending_user.delete()
 
-    return redirect("http://localhost:5173/denied")
+    return redirect(f"{settings.FRONTEND_URL}/denied")
 
 @api_view(['GET'])
 def verify_token(request, token):
@@ -252,7 +250,7 @@ def forgot_password(request):
     user.password_reset_token = token
     user.save()
 
-    reset_url = f"http://localhost:5173/reset-password/{token}"
+    reset_url = f"{settings.FRONTEND_URL}/reset-password/{token}"
     send_mail(
         subject="Password Reset Request",
         message=f"Hi {user.first_name},\n\nClick the link below to reset your password:\n\n{reset_url}\n\nIf you did not request this, please ignore this email.",
