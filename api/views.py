@@ -64,6 +64,9 @@ def login_view(request):
             'token': token.key,
             'is_staff': user.is_staff,
             'role': user.role,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'username': user.username,
         })
     else:
         return Response({'error': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
@@ -71,7 +74,10 @@ def login_view(request):
 @api_view(['GET'])
 def rmd_list(request):
     rmds = CustomUser.objects.filter(Q(is_rmd=True) | Q(is_staff=True) | Q(role='Admin'))
-    data = [{'id': rmd.id, 'name': f"{rmd.first_name} {rmd.last_name}", 'email': rmd.email} for rmd in rmds]
+    data = []
+    for rmd in rmds:
+        name = f"{rmd.first_name} {rmd.last_name}".strip() or rmd.username
+        data.append({'id': rmd.id, 'name': name, 'email': rmd.email})
     return Response(data, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
