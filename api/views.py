@@ -15,6 +15,7 @@ from rest_framework.authtoken.models import Token
 from django.core.mail import send_mail
 from django.conf import settings
 import uuid
+import re
 from .models import CustomUser, PendingUser, ValidHGICode
 from django.shortcuts import redirect
 
@@ -69,7 +70,7 @@ def login_view(request):
 
 @api_view(['GET'])
 def rmd_list(request):
-    rmds = CustomUser.objects.filter(is_rmd=True)
+    rmds = CustomUser.objects.filter(Q(is_rmd=True) | Q(is_staff=True) | Q(role='Admin'))
     data = [{'id': rmd.id, 'name': f"{rmd.first_name} {rmd.last_name}", 'email': rmd.email} for rmd in rmds]
     return Response(data, status=status.HTTP_200_OK)
 
@@ -183,16 +184,31 @@ def verify_token(request, token):
     except PendingUser.DoesNotExist:
         return Response({'valid': False})
 
+@api_view(['GET'])
+def check_username(request):
+    username = request.query_params.get('username', '').strip()
+    if not username:
+        return Response({'available': False})
+    taken = CustomUser.objects.filter(username__iexact=username).exists()
+    return Response({'available': not taken})
+
+
 @api_view(['POST'])
 def setup_account(request):
     token = request.data.get('token')
-    username = request.data.get('username')
-    password = request.data.get('password')
+    username = request.data.get('username', '').strip()
+    password = request.data.get('password', '')
 
     try:
         pending_user = PendingUser.objects.get(token=token)
     except PendingUser.DoesNotExist:
         return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not re.match(r'^[a-zA-Z0-9_]{3,20}$', username):
+        return Response({'error': 'Username must be 3–20 characters: letters, numbers, and underscores only.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if len(password) < 8 or not re.search(r'[a-zA-Z]', password) or not re.search(r'[0-9]', password):
+        return Response({'error': 'Password must be at least 8 characters and include at least one letter and one number.'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Check if username already exists
     if CustomUser.objects.filter(username__iexact=username).exists():
@@ -365,6 +381,17 @@ def hgi_codes_list(request):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def rmd_member_list(request):
+    if request.user.role != 'RMD' and not (request.user.is_staff or request.user.role == 'Admin'):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    members = CustomUser.objects.filter(upline_rmd=request.user).order_by('date_joined')
+    serializer = CustomUserSerializer(members, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @api_view(['PATCH', 'DELETE'])
