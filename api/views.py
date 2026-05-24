@@ -111,20 +111,14 @@ def register_request(request):
     except (CustomUser.DoesNotExist, ValueError, TypeError):
         return Response({'error': 'RMD not found'}, status=status.HTTP_400_BAD_REQUEST)
 
+    if not rmd.email:
+        return Response({'error': 'Your RMD does not have an email address on file. Please contact them directly.'}, status=status.HTTP_400_BAD_REQUEST)
+
     token = str(uuid.uuid4())
-
-    pending_user = PendingUser.objects.create(
-        first_name=first_name,
-        last_name=last_name,
-        email=email,
-        hgi_code=hgi_code,
-        upline_rmd=rmd,
-        token=token
-    )
-
     approve_url = f"{settings.BACKEND_URL}/api/v1/approve/{token}/"
     deny_url = f"{settings.BACKEND_URL}/api/v1/deny/{token}/"
 
+    # Send email FIRST — only create the pending record if it succeeds
     try:
         send_mail(
             subject="New Member Approval Request",
@@ -133,9 +127,17 @@ def register_request(request):
             recipient_list=[rmd.email],
         )
     except Exception as e:
-        pending_user.delete()
         print(f"Email error: {e}")
         return Response({'error': 'Failed to send approval email to your RMD. Please try again or contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    PendingUser.objects.create(
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        hgi_code=hgi_code,
+        upline_rmd=rmd,
+        token=token
+    )
 
     return Response({'message': 'Request sent to RMD for approval'}, status=status.HTTP_200_OK)
 
