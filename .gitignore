@@ -19,6 +19,9 @@ db.sqlite3
 .env
 .env.*
 
+# Fixtures with sensitive data
+api/fixtures/users.json
+
 # Editor
 .vscode/
 .idea/

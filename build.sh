@@ -4,6 +4,15 @@ pip install -r requirements.txt
 python manage.py collectstatic --no-input
 python manage.py migrate
 python manage.py shell -c "
+from api.models import ValidHGICode
+if not ValidHGICode.objects.exists():
+    from django.core.management import call_command
+    call_command('loaddata', 'api/fixtures/hgi_codes.json')
+    print('HGI codes loaded from fixture.')
+else:
+    print('HGI codes already exist — skipping.')
+"
+python manage.py shell -c "
 from django.contrib.auth import get_user_model
 import os
 User = get_user_model()
@@ -18,6 +27,7 @@ if username and password:
         u.role = 'Admin'
         u.first_name = first_name
         u.last_name = last_name
+        u.hgi_code = os.environ.get('DJANGO_SUPERUSER_HGI_CODE', '') or None
         u.save()
         print('Superuser created with Admin role.')
     else:
@@ -31,6 +41,10 @@ if username and password:
             changed = True
         if last_name and not u.last_name:
             u.last_name = last_name
+            changed = True
+        hgi_code = os.environ.get('DJANGO_SUPERUSER_HGI_CODE', '')
+        if hgi_code and not u.hgi_code:
+            u.hgi_code = hgi_code
             changed = True
         if changed:
             u.save()
