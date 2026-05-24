@@ -22,12 +22,21 @@ if username and password:
         print('Superuser created with Admin role.')
     else:
         u = User.objects.get(username=username)
+        changed = False
         if u.role != 'Admin':
             u.role = 'Admin'
+            changed = True
+        if first_name and not u.first_name:
+            u.first_name = first_name
+            changed = True
+        if last_name and not u.last_name:
+            u.last_name = last_name
+            changed = True
+        if changed:
             u.save()
-            print('Existing superuser role updated to Admin.')
+            print('Existing superuser updated.')
         else:
-            print('Superuser already exists with Admin role.')
+            print('Superuser already exists and is up to date.')
 else:
     print('Superuser credentials not set — skipping.')
 "
