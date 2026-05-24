@@ -12,13 +12,22 @@ email = os.environ.get('DJANGO_SUPERUSER_EMAIL', '')
 password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', '')
 first_name = os.environ.get('DJANGO_SUPERUSER_FIRST_NAME', '')
 last_name = os.environ.get('DJANGO_SUPERUSER_LAST_NAME', '')
-if username and password and not User.objects.filter(username=username).exists():
-    u = User.objects.create_superuser(username=username, email=email, password=password)
-    u.role = 'Admin'
-    u.first_name = first_name
-    u.last_name = last_name
-    u.save()
-    print('Superuser created with Admin role.')
+if username and password:
+    if not User.objects.filter(username=username).exists():
+        u = User.objects.create_superuser(username=username, email=email, password=password)
+        u.role = 'Admin'
+        u.first_name = first_name
+        u.last_name = last_name
+        u.save()
+        print('Superuser created with Admin role.')
+    else:
+        u = User.objects.get(username=username)
+        if u.role != 'Admin':
+            u.role = 'Admin'
+            u.save()
+            print('Existing superuser role updated to Admin.')
+        else:
+            print('Superuser already exists with Admin role.')
 else:
-    print('Superuser already exists or credentials not set.')
+    print('Superuser credentials not set — skipping.')
 "
