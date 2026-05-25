@@ -364,8 +364,7 @@ def hgi_codes_list(request):
             qs = qs.filter(
                 Q(code__icontains=search) |
                 Q(first_name__icontains=search) |
-                Q(last_name__icontains=search) |
-                Q(upline_rmd_name__icontains=search)
+                Q(last_name__icontains=search)
             )
         total = qs.count()
         num_pages = max(1, (total + _HGI_PAGE_SIZE - 1) // _HGI_PAGE_SIZE)
