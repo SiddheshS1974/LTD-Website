@@ -326,6 +326,52 @@ def delete_user(request, pk):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def create_rmd(request):
+    if not (request.user.is_staff or request.user.role == 'Admin'):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    username = request.data.get('username', '').strip()
+    password = request.data.get('password', '')
+    first_name = request.data.get('first_name', '').strip()
+    last_name = request.data.get('last_name', '').strip()
+    email = request.data.get('email', '').strip()
+    hgi_code = request.data.get('hgi_code', '').strip() or None
+
+    if not all([username, password, first_name, last_name, email]):
+        return Response({'error': 'First name, last name, email, username, and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not re.match(r'^[a-zA-Z0-9_]{3,20}$', username):
+        return Response({'error': 'Username must be 3–20 characters: letters, numbers, and underscores only.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if len(password) < 8 or not re.search(r'[a-zA-Z]', password) or not re.search(r'[0-9]', password):
+        return Response({'error': 'Password must be at least 8 characters and include at least one letter and one number.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if CustomUser.objects.filter(username__iexact=username).exists():
+        return Response({'error': 'Username already taken.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if CustomUser.objects.filter(email__iexact=email).exists():
+        return Response({'error': 'An account with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if hgi_code and CustomUser.objects.filter(hgi_code=hgi_code).exists():
+        return Response({'error': 'This HGI code is already in use.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = CustomUser.objects.create_user(
+        username=username,
+        password=password,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        hgi_code=hgi_code,
+        role='RMD',
+        is_rmd=True,
+    )
+    serializer = CustomUserSerializer(user)
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
 @api_view(['PATCH'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
