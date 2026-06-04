@@ -40,3 +40,12 @@ class ValidHGICode(models.Model):
 
     def __str__(self):
         return self.code
+
+
+class ProtectedFile(models.Model):
+    drive_file_id = models.CharField(max_length=200)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default='')
+
+    def __str__(self):
+        return self.title

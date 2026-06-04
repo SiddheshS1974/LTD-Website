@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, PendingUser, ValidHGICode
+from .models import CustomUser, PendingUser, ValidHGICode, ProtectedFile
 
 class CustomUserAdmin(UserAdmin):
     model = CustomUser
@@ -20,3 +20,9 @@ class ValidHGICodeAdmin(admin.ModelAdmin):
     search_fields = ('code', 'first_name', 'last_name')
 
 admin.site.register(CustomUser, CustomUserAdmin)
+
+
+@admin.register(ProtectedFile)
+class ProtectedFileAdmin(admin.ModelAdmin):
+    list_display = ('title', 'drive_file_id', 'description')
+    search_fields = ('title',)

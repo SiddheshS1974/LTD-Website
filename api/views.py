@@ -1,9 +1,9 @@
 from django.shortcuts import render, redirect
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.db.models import Q
 from students.models import Student
-from .serializers import StudentSerializer, CustomUserSerializer, ValidHGICodeSerializer
-from .models import CustomUser, PendingUser, ValidHGICode
+from .serializers import StudentSerializer, CustomUserSerializer, ValidHGICodeSerializer, ProtectedFileSerializer
+from .models import CustomUser, PendingUser, ValidHGICode, ProtectedFile
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -16,6 +16,8 @@ from django.core.mail import send_mail
 from django.conf import settings
 import uuid
 import re
+import io
+import json
 
 @api_view(['GET','POST'])
 def studentsView(request):
@@ -327,6 +329,23 @@ def delete_user(request, pk):
 @api_view(['PATCH'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
+def toggle_active(request, pk):
+    if not (request.user.is_staff or request.user.role == 'Admin'):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        user = CustomUser.objects.get(pk=pk)
+    except CustomUser.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if user == request.user:
+        return Response({'error': 'Cannot deactivate your own account.'}, status=status.HTTP_400_BAD_REQUEST)
+    user.is_active = not user.is_active
+    user.save()
+    return Response({'is_active': user.is_active}, status=status.HTTP_200_OK)
+
+
+@api_view(['PATCH'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 def change_user_role(request, pk):
     if not (request.user.is_staff or request.user.role == 'Admin'):
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
@@ -397,6 +416,76 @@ def rmd_member_list(request):
     members = CustomUser.objects.filter(upline_rmd=request.user).order_by('date_joined')
     serializer = CustomUserSerializer(members, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def file_list(request):
+    files = ProtectedFile.objects.all().order_by('title')
+    serializer = ProtectedFileSerializer(files, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+_GOOGLE_EXPORT_MAP = {
+    'application/vnd.google-apps.presentation': 'application/pdf',
+    'application/vnd.google-apps.document': 'application/pdf',
+    'application/vnd.google-apps.spreadsheet': 'application/pdf',
+}
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def file_proxy(request, pk):
+    try:
+        protected_file = ProtectedFile.objects.get(pk=pk)
+    except ProtectedFile.DoesNotExist:
+        return Response({'error': 'File not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    sa_json = getattr(settings, 'GOOGLE_SERVICE_ACCOUNT_JSON', '')
+    if not sa_json:
+        return Response({'error': 'File service not configured.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaIoBaseDownload
+
+        creds = service_account.Credentials.from_service_account_info(
+            json.loads(sa_json),
+            scopes=['https://www.googleapis.com/auth/drive.readonly'],
+        )
+        service = build('drive', 'v3', credentials=creds)
+
+        file_meta = service.files().get(
+            fileId=protected_file.drive_file_id, fields='mimeType,name'
+        ).execute()
+        mime_type = file_meta['mimeType']
+
+        buffer = io.BytesIO()
+        if mime_type in _GOOGLE_EXPORT_MAP:
+            export_mime = _GOOGLE_EXPORT_MAP[mime_type]
+            req = service.files().export_media(
+                fileId=protected_file.drive_file_id, mimeType=export_mime
+            )
+            response_mime = export_mime
+        else:
+            req = service.files().get_media(fileId=protected_file.drive_file_id)
+            response_mime = mime_type
+
+        downloader = MediaIoBaseDownload(buffer, req)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+
+        buffer.seek(0)
+        http_response = HttpResponse(buffer.read(), content_type=response_mime)
+        http_response['Content-Disposition'] = f'inline; filename="{protected_file.title}"'
+        return http_response
+
+    except Exception as e:
+        print(f"Drive proxy error: {e}")
+        return Response({'error': 'Failed to retrieve file.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['PATCH', 'DELETE'])

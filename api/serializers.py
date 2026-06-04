@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from students.models import Student
-from .models import CustomUser, ValidHGICode
+from .models import CustomUser, ValidHGICode, ProtectedFile
 
 class StudentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -29,3 +29,9 @@ class ValidHGICodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ValidHGICode
         fields = ['id', 'code', 'first_name', 'last_name', 'upline_rmd_name']
+
+
+class ProtectedFileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProtectedFile
+        fields = ['id', 'title', 'description']

@@ -19,7 +19,10 @@ urlpatterns = [
     path('users/', views.user_list),
     path('users/<int:pk>/delete/', views.delete_user),
     path('users/<int:pk>/role/', views.change_user_role),
+    path('users/<int:pk>/toggle-active/', views.toggle_active),
     path('rmd/members/', views.rmd_member_list),
     path('hgi-codes/', views.hgi_codes_list),
     path('hgi-codes/<int:pk>/', views.hgi_code_detail),
+    path('files/', views.file_list),
+    path('files/<int:pk>/stream/', views.file_proxy),
 ]
