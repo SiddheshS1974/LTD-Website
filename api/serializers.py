@@ -15,7 +15,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'first_name', 'last_name', 'email',
             'is_staff', 'is_active', 'date_joined', 'last_login',
-            'role', 'hgi_code', 'upline_rmd_name', 'is_rmd_member',
+            'role', 'hgi_code', 'upline_rmd_name', 'is_rmd_member', 'can_receive_requests',
         ]
 
     def get_upline_rmd_name(self, obj):

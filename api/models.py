@@ -13,6 +13,7 @@ class CustomUser(AbstractUser):
     role = models.CharField(max_length=50, choices=ROLE_CHOICES, default='New Member')
     is_rmd = models.BooleanField(default=False)
     is_rmd_member = models.BooleanField(default=False)
+    can_receive_requests = models.BooleanField(default=False)
     password_reset_token = models.CharField(max_length=200, null=True, blank=True)
 
     def __str__(self):

@@ -108,22 +108,27 @@ def register_request(request):
     if CustomUser.objects.filter(hgi_code=hgi_code).exists():
         return Response({'error': 'This HGI code is already in use. Please check your HGI code and try again.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Use the provided uplineRMD if given, otherwise fall back to an admin account
+    # Route to the upline RMD if they have access control enabled, otherwise fall back to admin
     rmd = None
-    if upline_rmd_id:
-        try:
-            rmd = CustomUser.objects.get(id=int(upline_rmd_id))
-        except (CustomUser.DoesNotExist, ValueError, TypeError):
-            pass
+    try:
+        valid_code = ValidHGICode.objects.get(code=hgi_code)
+        upline_name = valid_code.upline_rmd_name.strip()
+        if upline_name:
+            name_parts = upline_name.split()
+            rmd = CustomUser.objects.filter(
+                first_name__iexact=name_parts[0],
+                last_name__iexact=name_parts[-1],
+                is_rmd_member=True,
+                can_receive_requests=True,
+            ).exclude(email='').first()
+    except ValidHGICode.DoesNotExist:
+        pass
 
     if not rmd:
-        rmd = CustomUser.objects.filter(is_staff=True, email__isnull=False).exclude(email='').first()
+        rmd = CustomUser.objects.filter(is_staff=True).exclude(email='').first()
 
     if not rmd:
         return Response({'error': 'No admin account found to process this request. Please contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    if not rmd.email:
-        return Response({'error': 'Admin account has no email address configured. Please contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     token = str(uuid.uuid4())
     approve_url = f"{settings.BACKEND_URL}/api/v1/approve/{token}/"
@@ -395,6 +400,21 @@ def toggle_active(request, pk):
     user.is_active = not user.is_active
     user.save()
     return Response({'is_active': user.is_active}, status=status.HTTP_200_OK)
+
+
+@api_view(['PATCH'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def toggle_requests(request, pk):
+    if not (request.user.is_staff or request.user.role == 'Admin'):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        user = CustomUser.objects.get(pk=pk)
+    except CustomUser.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+    user.can_receive_requests = not user.can_receive_requests
+    user.save()
+    return Response({'can_receive_requests': user.can_receive_requests}, status=status.HTTP_200_OK)
 
 
 @api_view(['PATCH'])

@@ -21,6 +21,7 @@ urlpatterns = [
     path('users/<int:pk>/delete/', views.delete_user),
     path('users/<int:pk>/role/', views.change_user_role),
     path('users/<int:pk>/toggle-active/', views.toggle_active),
+    path('users/<int:pk>/toggle-requests/', views.toggle_requests),
     path('rmd/members/', views.rmd_member_list),
     path('hgi-codes/', views.hgi_codes_list),
     path('hgi-codes/<int:pk>/', views.hgi_code_detail),
