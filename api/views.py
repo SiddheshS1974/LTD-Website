@@ -125,10 +125,13 @@ def register_request(request):
         pass
 
     if not rmd:
-        rmd = CustomUser.objects.filter(is_staff=True).exclude(email='').first()
-
-    if not rmd:
-        return Response({'error': 'No admin account found to process this request. Please contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        admins = list(CustomUser.objects.filter(is_staff=True).exclude(email=''))
+        if not admins:
+            return Response({'error': 'No admin account found to process this request. Please contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        rmd = admins[0]
+        recipient_emails = [a.email for a in admins]
+    else:
+        recipient_emails = [rmd.email]
 
     token = str(uuid.uuid4())
     approve_url = f"{settings.BACKEND_URL}/api/v1/approve/{token}/"
@@ -140,7 +143,7 @@ def register_request(request):
             subject="New Member Approval Request",
             message=f"A new member has requested to join.\n\nName: {first_name} {last_name}\nEmail: {email}\nHGI Code: {hgi_code}\n\nClick Approve or Deny below:\n\nApprove: {approve_url}\nDeny: {deny_url}",
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[rmd.email],
+            recipient_list=recipient_emails,
         )
     except Exception as e:
         print(f"Email error: {e}")
