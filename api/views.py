@@ -365,8 +365,7 @@ def create_rmd(request):
         first_name=first_name,
         last_name=last_name,
         hgi_code=hgi_code,
-        role='RMD',
-        is_rmd=True,
+        is_rmd_member=True,
     )
     serializer = CustomUserSerializer(user)
     return Response(serializer.data, status=status.HTTP_201_CREATED)
