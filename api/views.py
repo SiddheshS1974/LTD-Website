@@ -108,13 +108,22 @@ def register_request(request):
     if CustomUser.objects.filter(hgi_code=hgi_code).exists():
         return Response({'error': 'This HGI code is already in use. Please check your HGI code and try again.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        rmd = CustomUser.objects.get(id=int(upline_rmd_id))
-    except (CustomUser.DoesNotExist, ValueError, TypeError):
-        return Response({'error': 'RMD not found'}, status=status.HTTP_400_BAD_REQUEST)
+    # Use the provided uplineRMD if given, otherwise fall back to an admin account
+    rmd = None
+    if upline_rmd_id:
+        try:
+            rmd = CustomUser.objects.get(id=int(upline_rmd_id))
+        except (CustomUser.DoesNotExist, ValueError, TypeError):
+            pass
+
+    if not rmd:
+        rmd = CustomUser.objects.filter(is_staff=True, email__isnull=False).exclude(email='').first()
+
+    if not rmd:
+        return Response({'error': 'No admin account found to process this request. Please contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     if not rmd.email:
-        return Response({'error': 'Your RMD does not have an email address on file. Please contact them directly.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'Admin account has no email address configured. Please contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     token = str(uuid.uuid4())
     approve_url = f"{settings.BACKEND_URL}/api/v1/approve/{token}/"
@@ -130,7 +139,7 @@ def register_request(request):
         )
     except Exception as e:
         print(f"Email error: {e}")
-        return Response({'error': 'Failed to send approval email to your RMD. Please try again or contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'error': 'Failed to send approval email. Please try again or contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     PendingUser.objects.create(
         first_name=first_name,
