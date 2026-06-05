@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, PendingUser, ValidHGICode, ProtectedFile
+from .models import CustomUser, PendingUser, ValidHGICode, ProtectedFile, RMDProfile
 
 class CustomUserAdmin(UserAdmin):
     model = CustomUser
@@ -26,3 +26,8 @@ admin.site.register(CustomUser, CustomUserAdmin)
 class ProtectedFileAdmin(admin.ModelAdmin):
     list_display = ('title', 'drive_file_id', 'description')
     search_fields = ('title',)
+
+@admin.register(RMDProfile)
+class RMDProfileAdmin(admin.ModelAdmin):
+    list_display = ('first_name', 'last_name', 'hgi_code', 'user')
+    search_fields = ('first_name', 'last_name', 'hgi_code')

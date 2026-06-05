@@ -51,3 +51,15 @@ class ProtectedFile(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class RMDProfile(models.Model):
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    hgi_code = models.CharField(max_length=50, unique=True)
+    user = models.OneToOneField(
+        CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='rmd_profile'
+    )
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}"

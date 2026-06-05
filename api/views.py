@@ -2,8 +2,8 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q
 from students.models import Student
-from .serializers import StudentSerializer, CustomUserSerializer, ValidHGICodeSerializer, ProtectedFileSerializer
-from .models import CustomUser, PendingUser, ValidHGICode, ProtectedFile
+from .serializers import StudentSerializer, CustomUserSerializer, ValidHGICodeSerializer, ProtectedFileSerializer, RMDProfileSerializer
+from .models import CustomUser, PendingUser, ValidHGICode, ProtectedFile, RMDProfile
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -115,12 +115,14 @@ def register_request(request):
         upline_name = valid_code.upline_rmd_name.strip()
         if upline_name:
             name_parts = upline_name.split()
-            rmd = CustomUser.objects.filter(
+            rmd_profile = RMDProfile.objects.filter(
                 first_name__iexact=name_parts[0],
                 last_name__iexact=name_parts[-1],
-                is_rmd_member=True,
-                can_receive_requests=True,
-            ).exclude(email='').first()
+                user__isnull=False,
+                user__can_receive_requests=True,
+            ).exclude(user__email='').select_related('user').first()
+            if rmd_profile:
+                rmd = rmd_profile.user
     except ValidHGICode.DoesNotExist:
         pass
 
@@ -254,6 +256,16 @@ def setup_account(request):
         role='New Member'
     )
 
+    # Link to RMDProfile if their HGI code matches an unclaimed profile
+    try:
+        rmd_profile = RMDProfile.objects.get(hgi_code=pending_user.hgi_code, user__isnull=True)
+        user.is_rmd_member = True
+        user.save()
+        rmd_profile.user = user
+        rmd_profile.save()
+    except RMDProfile.DoesNotExist:
+        pass
+
     # Delete the pending user now that account is created
     pending_user.delete()
 
@@ -343,48 +355,41 @@ def delete_user(request, pk):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
-def create_rmd(request):
+def rmd_profiles_list(request):
     if not (request.user.is_staff or request.user.role == 'Admin'):
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
 
-    username = request.data.get('username', '').strip()
-    password = request.data.get('password', '')
+    if request.method == 'GET':
+        profiles = RMDProfile.objects.all().select_related('user').order_by('last_name', 'first_name')
+        serializer = RMDProfileSerializer(profiles, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     first_name = request.data.get('first_name', '').strip()
     last_name = request.data.get('last_name', '').strip()
-    email = request.data.get('email', '').strip()
-    hgi_code = request.data.get('hgi_code', '').strip() or None
+    hgi_code = request.data.get('hgi_code', '').strip()
 
-    if not all([username, password, first_name, last_name, email]):
-        return Response({'error': 'First name, last name, email, username, and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not all([first_name, last_name, hgi_code]):
+        return Response({'error': 'First name, last name, and HGI code are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if not re.match(r'^[a-zA-Z0-9_]{3,20}$', username):
-        return Response({'error': 'Username must be 3–20 characters: letters, numbers, and underscores only.'}, status=status.HTTP_400_BAD_REQUEST)
+    if RMDProfile.objects.filter(hgi_code=hgi_code).exists():
+        return Response({'error': 'An RMD with this HGI code already exists in the list.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if len(password) < 8 or not re.search(r'[a-zA-Z]', password) or not re.search(r'[0-9]', password):
-        return Response({'error': 'Password must be at least 8 characters and include at least one letter and one number.'}, status=status.HTTP_400_BAD_REQUEST)
+    # If a CustomUser with this HGI code already exists, link them immediately
+    user = CustomUser.objects.filter(hgi_code=hgi_code).first()
+    if user:
+        user.is_rmd_member = True
+        user.save()
 
-    if CustomUser.objects.filter(username__iexact=username).exists():
-        return Response({'error': 'Username already taken.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    if CustomUser.objects.filter(email__iexact=email).exists():
-        return Response({'error': 'An account with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    if hgi_code and CustomUser.objects.filter(hgi_code=hgi_code).exists():
-        return Response({'error': 'This HGI code is already in use.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    user = CustomUser.objects.create_user(
-        username=username,
-        password=password,
-        email=email,
+    profile = RMDProfile.objects.create(
         first_name=first_name,
         last_name=last_name,
         hgi_code=hgi_code,
-        is_rmd_member=True,
+        user=user,
     )
-    serializer = CustomUserSerializer(user)
+    serializer = RMDProfileSerializer(profile)
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
