@@ -108,16 +108,14 @@ def register_request(request):
     if CustomUser.objects.filter(hgi_code=hgi_code).exists():
         return Response({'error': 'This HGI code is already in use. Please check your HGI code and try again.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Route to the upline RMD if they have access control enabled, otherwise fall back to admin
+    # Route to the upline RMD if their HGI code is set and they have direct access enabled
     rmd = None
     try:
         valid_code = ValidHGICode.objects.get(code=hgi_code)
-        upline_name = valid_code.upline_rmd_name.strip()
-        if upline_name:
-            name_parts = upline_name.split()
+        upline_code = valid_code.upline_rmd_hgi_code.strip()
+        if upline_code:
             rmd_profile = RMDProfile.objects.filter(
-                first_name__iexact=name_parts[0],
-                last_name__iexact=name_parts[-1],
+                hgi_code=upline_code,
                 user__isnull=False,
                 user__can_receive_requests=True,
             ).exclude(user__email='').select_related('user').first()

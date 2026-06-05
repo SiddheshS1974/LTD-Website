@@ -39,6 +39,7 @@ class ValidHGICode(models.Model):
     first_name = models.CharField(max_length=100, blank=True, default='')
     last_name = models.CharField(max_length=100, blank=True, default='')
     upline_rmd_name = models.CharField(max_length=200, blank=True, default='')
+    upline_rmd_hgi_code = models.CharField(max_length=50, blank=True, default='')
 
     def __str__(self):
         return self.code
