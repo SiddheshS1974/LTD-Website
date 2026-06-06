@@ -64,6 +64,7 @@ def login_view(request):
             'token': token.key,
             'is_staff': user.is_staff,
             'role': user.role,
+            'is_rmd_member': user.is_rmd_member,
             'first_name': user.first_name,
             'last_name': user.last_name,
             'username': user.username,
@@ -491,7 +492,7 @@ def hgi_codes_list(request):
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def rmd_member_list(request):
-    if request.user.role != 'RMD' and not (request.user.is_staff or request.user.role == 'Admin'):
+    if not request.user.is_rmd_member and not (request.user.is_staff or request.user.role == 'Admin'):
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
     members = CustomUser.objects.filter(upline_rmd=request.user).order_by('date_joined')
     serializer = CustomUserSerializer(members, many=True)
