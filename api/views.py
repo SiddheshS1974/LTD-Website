@@ -392,6 +392,24 @@ def rmd_profiles_list(request):
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+@api_view(['DELETE'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def rmd_profile_detail(request, pk):
+    if not (request.user.is_staff or request.user.role == 'Admin'):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        profile = RMDProfile.objects.get(pk=pk)
+    except RMDProfile.DoesNotExist:
+        return Response({'error': 'RMD profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+    # Unlink the associated user's is_rmd_member flag before deleting
+    if profile.user:
+        profile.user.is_rmd_member = False
+        profile.user.save()
+    profile.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 @api_view(['PATCH'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])

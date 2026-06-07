@@ -18,6 +18,7 @@ urlpatterns = [
     path('logout/', views.logout_view),
     path('users/', views.user_list),
     path('rmd-profiles/', views.rmd_profiles_list),
+    path('rmd-profiles/<int:pk>/', views.rmd_profile_detail),
     path('users/<int:pk>/delete/', views.delete_user),
     path('users/<int:pk>/role/', views.change_user_role),
     path('users/<int:pk>/toggle-active/', views.toggle_active),
