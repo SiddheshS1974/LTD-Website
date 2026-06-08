@@ -109,10 +109,12 @@ def register_request(request):
     if CustomUser.objects.filter(hgi_code=hgi_code).exists():
         return Response({'error': 'This HGI code is already in use. Please check your HGI code and try again.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Route to the upline RMD if their HGI code is set and they have direct access enabled
+    # Route to the upline RMD if they have direct access enabled.
+    # Try HGI code match first, then fall back to name match against RMDProfile.
     rmd = None
     try:
         valid_code = ValidHGICode.objects.get(code=hgi_code)
+
         upline_code = valid_code.upline_rmd_hgi_code.strip()
         if upline_code:
             rmd_profile = RMDProfile.objects.filter(
@@ -122,6 +124,19 @@ def register_request(request):
             ).exclude(user__email='').select_related('user').first()
             if rmd_profile:
                 rmd = rmd_profile.user
+
+        if not rmd:
+            upline_name = valid_code.upline_rmd_name.strip().lower()
+            if upline_name:
+                for profile in RMDProfile.objects.filter(
+                    user__isnull=False,
+                    user__can_receive_requests=True,
+                ).exclude(user__email='').select_related('user'):
+                    profile_name = f"{profile.first_name} {profile.last_name}".strip().lower()
+                    if profile_name == upline_name:
+                        rmd = profile.user
+                        break
+
     except ValidHGICode.DoesNotExist:
         pass
 
