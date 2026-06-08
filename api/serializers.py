@@ -28,7 +28,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
 class ValidHGICodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ValidHGICode
-        fields = ['id', 'code', 'first_name', 'last_name', 'upline_rmd_name', 'upline_rmd_hgi_code']
+        fields = ['id', 'code', 'first_name', 'last_name', 'upline_rmd_name']
 
 
 class ProtectedFileSerializer(serializers.ModelSerializer):

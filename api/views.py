@@ -110,36 +110,24 @@ def register_request(request):
         return Response({'error': 'This HGI code is already in use. Please check your HGI code and try again.'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Route to the upline RMD if they have direct access enabled.
-    # Try HGI code match first, then fall back to name match against RMDProfile.
+    # Match upline_rmd_name against other ValidHGICode entries to find the RMD's HGI code,
+    # then look up their RMDProfile.
     rmd = None
     try:
         valid_code = ValidHGICode.objects.get(code=hgi_code)
-
-        upline_code = valid_code.upline_rmd_hgi_code.strip()
-        if upline_code:
-            rmd_profile = RMDProfile.objects.filter(
-                hgi_code=upline_code,
-                user__isnull=False,
-                user__can_receive_requests=True,
-            ).exclude(user__email='').select_related('user').first()
-            if rmd_profile:
-                rmd = rmd_profile.user
-
-        if not rmd:
-            upline_name = valid_code.upline_rmd_name.strip().lower()
-            if upline_name:
-                for hgi_entry in ValidHGICode.objects.exclude(code=hgi_code):
-                    entry_name = f"{hgi_entry.first_name} {hgi_entry.last_name}".strip().lower()
-                    if entry_name == upline_name:
-                        rmd_profile = RMDProfile.objects.filter(
-                            hgi_code=hgi_entry.code,
-                            user__isnull=False,
-                            user__can_receive_requests=True,
-                        ).exclude(user__email='').select_related('user').first()
-                        if rmd_profile:
-                            rmd = rmd_profile.user
-                        break
-
+        upline_name = valid_code.upline_rmd_name.strip().lower()
+        if upline_name:
+            for hgi_entry in ValidHGICode.objects.exclude(code=hgi_code):
+                entry_name = f"{hgi_entry.first_name} {hgi_entry.last_name}".strip().lower()
+                if entry_name == upline_name:
+                    rmd_profile = RMDProfile.objects.filter(
+                        hgi_code=hgi_entry.code,
+                        user__isnull=False,
+                        user__can_receive_requests=True,
+                    ).exclude(user__email='').select_related('user').first()
+                    if rmd_profile:
+                        rmd = rmd_profile.user
+                    break
     except ValidHGICode.DoesNotExist:
         pass
 
