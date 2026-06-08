@@ -128,13 +128,16 @@ def register_request(request):
         if not rmd:
             upline_name = valid_code.upline_rmd_name.strip().lower()
             if upline_name:
-                for profile in RMDProfile.objects.filter(
-                    user__isnull=False,
-                    user__can_receive_requests=True,
-                ).exclude(user__email='').select_related('user'):
-                    profile_name = f"{profile.first_name} {profile.last_name}".strip().lower()
-                    if profile_name == upline_name:
-                        rmd = profile.user
+                for hgi_entry in ValidHGICode.objects.exclude(code=hgi_code):
+                    entry_name = f"{hgi_entry.first_name} {hgi_entry.last_name}".strip().lower()
+                    if entry_name == upline_name:
+                        rmd_profile = RMDProfile.objects.filter(
+                            hgi_code=hgi_entry.code,
+                            user__isnull=False,
+                            user__can_receive_requests=True,
+                        ).exclude(user__email='').select_related('user').first()
+                        if rmd_profile:
+                            rmd = rmd_profile.user
                         break
 
     except ValidHGICode.DoesNotExist:
