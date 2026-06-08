@@ -19,9 +19,12 @@ class CustomUserSerializer(serializers.ModelSerializer):
         ]
 
     def get_upline_rmd_name(self, obj):
-        if obj.upline_rmd:
-            name = f"{obj.upline_rmd.first_name} {obj.upline_rmd.last_name}".strip()
-            return name or obj.upline_rmd.username
+        if obj.hgi_code:
+            try:
+                valid_code = ValidHGICode.objects.get(code=obj.hgi_code)
+                return valid_code.upline_rmd_name or None
+            except ValidHGICode.DoesNotExist:
+                pass
         return None
 
 
