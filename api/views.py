@@ -67,6 +67,7 @@ def login_view(request):
             'is_staff': user.is_staff,
             'role': user.role,
             'is_rmd_member': user.is_rmd_member,
+            'can_receive_requests': user.can_receive_requests,
             'first_name': user.first_name,
             'last_name': user.last_name,
             'username': user.username,
@@ -469,7 +470,9 @@ def rmd_profile_detail(request, pk):
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def toggle_active(request, pk):
-    if not (request.user.is_staff or request.user.role == 'Admin'):
+    is_admin = request.user.is_staff or request.user.role == 'Admin'
+    is_rmd = request.user.is_rmd_member and request.user.can_receive_requests
+    if not is_admin and not is_rmd:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
     try:
         user = CustomUser.objects.get(pk=pk)
@@ -477,6 +480,8 @@ def toggle_active(request, pk):
         return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
     if user == request.user:
         return Response({'error': 'Cannot deactivate your own account.'}, status=status.HTTP_400_BAD_REQUEST)
+    if is_rmd and not is_admin and user.upline_rmd != request.user:
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
     user.is_active = not user.is_active
     user.save()
     return Response({'is_active': user.is_active}, status=status.HTTP_200_OK)
@@ -501,12 +506,16 @@ def toggle_requests(request, pk):
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def change_user_role(request, pk):
-    if not (request.user.is_staff or request.user.role == 'Admin'):
+    is_admin = request.user.is_staff or request.user.role == 'Admin'
+    is_rmd = request.user.is_rmd_member and request.user.can_receive_requests
+    if not is_admin and not is_rmd:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
     try:
         user = CustomUser.objects.get(pk=pk)
     except CustomUser.DoesNotExist:
         return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if is_rmd and not is_admin and user.upline_rmd != request.user:
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
     role = request.data.get('role')
     valid_roles = [r[0] for r in CustomUser.ROLE_CHOICES]
     if role not in valid_roles:
