@@ -54,7 +54,7 @@ def login_view(request):
     try:
         user_obj = CustomUser.objects.get(username__iexact=username)
         if user_obj.check_password(password) and not user_obj.is_active:
-            return Response({'error': 'Your account has been deactivated. Please contact your administrator.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({'error': 'Your account has been deactivated. Please contact your RMD.'}, status=status.HTTP_403_FORBIDDEN)
         user = authenticate(username=user_obj.username, password=password)
     except CustomUser.DoesNotExist:
         user = None
