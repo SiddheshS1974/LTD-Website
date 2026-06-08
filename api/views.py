@@ -53,6 +53,8 @@ def login_view(request):
 
     try:
         user_obj = CustomUser.objects.get(username__iexact=username)
+        if user_obj.check_password(password) and not user_obj.is_active:
+            return Response({'error': 'Your account has been deactivated. Please contact your administrator.'}, status=status.HTTP_403_FORBIDDEN)
         user = authenticate(username=user_obj.username, password=password)
     except CustomUser.DoesNotExist:
         user = None
@@ -70,7 +72,7 @@ def login_view(request):
             'username': user.username,
         })
     else:
-        return Response({'error': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'Invalid credentials. Please check your username and password.'}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 def rmd_list(request):
