@@ -275,6 +275,42 @@ def setup_account(request):
     pending_user.delete()
 
     return Response({'message': 'Account created successfully'}, status=status.HTTP_200_OK)
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def pending_users_list(request):
+    if not (request.user.is_staff or request.user.role == 'Admin'):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    pending = PendingUser.objects.all().order_by('-created_at')
+    data = [
+        {
+            'id': p.id,
+            'first_name': p.first_name,
+            'last_name': p.last_name,
+            'email': p.email,
+            'hgi_code': p.hgi_code,
+            'is_approved': p.is_approved,
+            'created_at': p.created_at,
+        }
+        for p in pending
+    ]
+    return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(['DELETE'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def pending_user_detail(request, pk):
+    if not (request.user.is_staff or request.user.role == 'Admin'):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        pending = PendingUser.objects.get(pk=pk)
+    except PendingUser.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+    pending.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 @api_view(['POST'])
 def forgot_password(request):
     email = request.data.get('email')

@@ -17,6 +17,8 @@ urlpatterns = [
     path('reset-password/', views.reset_password),
     path('logout/', views.logout_view),
     path('users/', views.user_list),
+    path('pending-users/', views.pending_users_list),
+    path('pending-users/<int:pk>/', views.pending_user_detail),
     path('rmd-profiles/', views.rmd_profiles_list),
     path('rmd-profiles/<int:pk>/', views.rmd_profile_detail),
     path('users/<int:pk>/delete/', views.delete_user),
