@@ -101,7 +101,18 @@ def register_request(request):
 
     # Check if HGI code exists in the list of valid codes
     if ValidHGICode.objects.exists() and not ValidHGICode.objects.filter(code=hgi_code).exists():
-        return Response({'error': 'This HGI code is not recognised. Please check your code and try again.'}, status=status.HTTP_400_BAD_REQUEST)
+        admins = list(CustomUser.objects.filter(is_staff=True).exclude(email=''))
+        if admins:
+            try:
+                send_mail(
+                    subject="Unrecognised HGI Code — Account Request",
+                    message=f"Someone tried to sign up with an HGI code that is not on the valid codes list.\n\nName: {first_name} {last_name}\nEmail: {email}\nHGI Code entered: {hgi_code}\n\nNo account has been created. Please follow up with this person directly.",
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[a.email for a in admins],
+                )
+            except Exception as e:
+                print(f"Email error (unrecognised HGI code): {e}")
+        return Response({'error': 'Your HGI code was not found in our system. Please contact your RMD to verify your code.'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Check if HGI code is already in use by a pending user
     if PendingUser.objects.filter(hgi_code=hgi_code).exists():
