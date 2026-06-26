@@ -53,27 +53,28 @@ def login_view(request):
 
     try:
         user_obj = CustomUser.objects.get(username__iexact=username)
-        if user_obj.check_password(password) and not user_obj.is_active:
-            return Response({'error': 'Your account has been deactivated. Please contact your RMD.'}, status=status.HTTP_403_FORBIDDEN)
-        user = authenticate(username=user_obj.username, password=password)
     except CustomUser.DoesNotExist:
-        user = None
-
-    if user:
-        update_last_login(None, user)
-        token, created = Token.objects.get_or_create(user=user)
-        return Response({
-            'token': token.key,
-            'is_staff': user.is_staff,
-            'role': user.role,
-            'is_rmd_member': user.is_rmd_member,
-            'can_receive_requests': user.can_receive_requests,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'username': user.username,
-        })
-    else:
         return Response({'error': 'Invalid credentials. Please check your username and password.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = authenticate(username=user_obj.username, password=password)
+
+    if user is None:
+        if not user_obj.is_active and user_obj.check_password(password):
+            return Response({'error': 'Your account has been deactivated. Please contact your RMD.'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'error': 'Invalid credentials. Please check your username and password.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    update_last_login(None, user)
+    token, created = Token.objects.get_or_create(user=user)
+    return Response({
+        'token': token.key,
+        'is_staff': user.is_staff,
+        'role': user.role,
+        'is_rmd_member': user.is_rmd_member,
+        'can_receive_requests': user.can_receive_requests,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'username': user.username,
+    })
 
 @api_view(['GET'])
 def rmd_list(request):
@@ -150,25 +151,8 @@ def register_request(request):
         if not admins:
             return Response({'error': 'No admin account found to process this request. Please contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         rmd = admins[0]
-        recipient_emails = [a.email for a in admins]
-    else:
-        recipient_emails = [rmd.email]
 
     token = str(uuid.uuid4())
-    approve_url = f"{settings.BACKEND_URL}/api/v1/approve/{token}/"
-    deny_url = f"{settings.BACKEND_URL}/api/v1/deny/{token}/"
-
-    # Send email FIRST — only create the pending record if it succeeds
-    try:
-        send_mail(
-            subject="New Member Approval Request",
-            message=f"A new member has requested to join.\n\nName: {first_name} {last_name}\nEmail: {email}\nHGI Code: {hgi_code}\n\nClick Approve or Deny below:\n\nApprove: {approve_url}\nDeny: {deny_url}",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=recipient_emails,
-        )
-    except Exception as e:
-        print(f"Email error: {e}")
-        return Response({'error': 'Failed to send approval email. Please try again or contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     PendingUser.objects.create(
         first_name=first_name,
@@ -179,7 +163,7 @@ def register_request(request):
         token=token
     )
 
-    return Response({'message': 'Request sent to RMD for approval'}, status=status.HTTP_200_OK)
+    return Response({'message': 'Your request has been submitted and is pending approval.'}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 def approve_request(request, token):
@@ -315,14 +299,85 @@ def pending_users_list(request):
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def pending_user_detail(request, pk):
-    if not (request.user.is_staff or request.user.role == 'Admin'):
-        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
     try:
         pending = PendingUser.objects.get(pk=pk)
     except PendingUser.DoesNotExist:
         return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    is_admin = request.user.is_staff or request.user.role == 'Admin'
+    is_assigned_rmd = (pending.upline_rmd_id == request.user.pk and request.user.can_receive_requests)
+    if not (is_admin or is_assigned_rmd):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if not pending.is_approved:
+        try:
+            send_mail(
+                subject="Your account request has been denied",
+                message=f"Hi {pending.first_name},\n\nUnfortunately your account request has been denied. Please contact your RMD for more information.",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[pending.email],
+            )
+        except Exception as e:
+            print(f"Email error (denial notification): {e}")
+
     pending.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def approve_pending(request, pk):
+    try:
+        pending = PendingUser.objects.get(pk=pk)
+    except PendingUser.DoesNotExist:
+        return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    is_admin = request.user.is_staff or request.user.role == 'Admin'
+    is_assigned_rmd = (pending.upline_rmd_id == request.user.pk and request.user.can_receive_requests)
+    if not (is_admin or is_assigned_rmd):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if pending.is_approved:
+        return Response({'error': 'Already approved.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    pending.is_approved = True
+    pending.save()
+
+    setup_url = f"{settings.FRONTEND_URL}/setup-account/{pending.token}"
+    try:
+        send_mail(
+            subject="Your account has been approved!",
+            message=f"Hi {pending.first_name},\n\nYour account has been approved! Click the link below to create your username and password:\n\n{setup_url}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[pending.email],
+        )
+    except Exception as e:
+        print(f"Email error (approval notification): {e}")
+
+    return Response({'message': 'Approved.'}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def rmd_pending_list(request):
+    if not request.user.is_rmd_member:
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    pending = PendingUser.objects.filter(upline_rmd=request.user).order_by('-created_at')
+    data = [
+        {
+            'id': p.id,
+            'first_name': p.first_name,
+            'last_name': p.last_name,
+            'email': p.email,
+            'hgi_code': p.hgi_code,
+            'is_approved': p.is_approved,
+            'created_at': p.created_at,
+        }
+        for p in pending
+    ]
+    return Response(data, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
