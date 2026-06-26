@@ -60,6 +60,24 @@ def login_view(request):
 
     if user is None:
         if not user_obj.is_active and user_obj.check_password(password):
+            try:
+                upline = user_obj.upline_rmd
+                if upline and upline.can_receive_requests and upline.email:
+                    recipient_emails = [upline.email]
+                else:
+                    recipient_emails = list(
+                        CustomUser.objects.filter(is_staff=True).exclude(email='').values_list('email', flat=True)
+                    )
+                if recipient_emails:
+                    full_name = f"{user_obj.first_name} {user_obj.last_name}".strip() or user_obj.username
+                    send_mail(
+                        subject="Deactivated Member Login Attempt",
+                        message=f"{full_name} (@{user_obj.username}) just tried to log in but their account is deactivated.\n\nIf this was intentional, you can reactivate their account from the panel.",
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=recipient_emails,
+                    )
+            except Exception as e:
+                print(f"Email error (deactivated login attempt): {e}")
             return Response({'error': 'Your account has been deactivated. Please contact your RMD.'}, status=status.HTTP_403_FORBIDDEN)
         return Response({'error': 'Invalid credentials. Please check your username and password.'}, status=status.HTTP_400_BAD_REQUEST)
 
