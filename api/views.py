@@ -70,7 +70,27 @@ def login_view(request):
             if user_obj.is_staff or user_obj.role == 'Admin':
                 recipient_emails = admin_emails
             else:
+                # Use the stored FK first; if not set, do a real-time lookup via
+                # ValidHGICode so we catch cases where the RMD enabled direct access
+                # after this user's account was created.
                 upline = user_obj.upline_rmd
+                if not upline and user_obj.hgi_code:
+                    try:
+                        valid_code = ValidHGICode.objects.get(code=user_obj.hgi_code)
+                        upline_name = valid_code.upline_rmd_name.strip().lower()
+                        if upline_name:
+                            for hgi_entry in ValidHGICode.objects.exclude(code=user_obj.hgi_code):
+                                entry_name = f"{hgi_entry.first_name} {hgi_entry.last_name}".strip().lower()
+                                if entry_name == upline_name:
+                                    rmd_profile = RMDProfile.objects.filter(
+                                        hgi_code=hgi_entry.code,
+                                        user__isnull=False,
+                                    ).select_related('user').first()
+                                    if rmd_profile:
+                                        upline = rmd_profile.user
+                                    break
+                    except ValidHGICode.DoesNotExist:
+                        pass
                 if upline and upline.can_receive_requests and upline.email:
                     recipient_emails = [upline.email]
                 else:
