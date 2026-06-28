@@ -60,31 +60,34 @@ def login_view(request):
 
     if user is None:
         if not user_obj.is_active and user_obj.check_password(password):
-            try:
-                full_name = f"{user_obj.first_name} {user_obj.last_name}".strip() or user_obj.username
-                admin_emails = list(
-                    CustomUser.objects.filter(
-                        Q(is_staff=True) | Q(role='Admin')
-                    ).exclude(email='').exclude(pk=user_obj.pk).values_list('email', flat=True)
-                )
-                # Admins always notify all other admins directly
-                if user_obj.is_staff or user_obj.role == 'Admin':
-                    recipient_emails = admin_emails
+            full_name = f"{user_obj.first_name} {user_obj.last_name}".strip() or user_obj.username
+            admin_emails = list(
+                CustomUser.objects.filter(
+                    Q(is_staff=True) | Q(role='Admin')
+                ).exclude(email='').exclude(email__isnull=True).exclude(pk=user_obj.pk)
+                .values_list('email', flat=True)
+            )
+            if user_obj.is_staff or user_obj.role == 'Admin':
+                recipient_emails = admin_emails
+            else:
+                upline = user_obj.upline_rmd
+                if upline and upline.can_receive_requests and upline.email:
+                    recipient_emails = [upline.email]
                 else:
-                    upline = user_obj.upline_rmd
-                    if upline and upline.can_receive_requests and upline.email:
-                        recipient_emails = [upline.email]
-                    else:
-                        recipient_emails = admin_emails
-                if recipient_emails:
+                    recipient_emails = admin_emails
+            print(f"[deactivated login] {user_obj.username} — notifying: {recipient_emails}")
+            if recipient_emails:
+                try:
                     send_mail(
                         subject="Deactivated Account Login Attempt",
                         message=f"{full_name} (@{user_obj.username}) just tried to log in but their account is deactivated.\n\nIf this was intentional, you can reactivate their account from the panel.",
                         from_email=settings.DEFAULT_FROM_EMAIL,
                         recipient_list=recipient_emails,
                     )
-            except Exception as e:
-                print(f"Email error (deactivated login attempt): {e}")
+                except Exception as e:
+                    print(f"[deactivated login] send_mail FAILED: {e}")
+            else:
+                print(f"[deactivated login] no admin emails found in DB — no notification sent")
             return Response({'error': 'Your account has been deactivated. Please contact your RMD.'}, status=status.HTTP_403_FORBIDDEN)
         return Response({'error': 'Invalid credentials. Please check your username and password.'}, status=status.HTTP_400_BAD_REQUEST)
 
