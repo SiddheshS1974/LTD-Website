@@ -61,17 +61,24 @@ def login_view(request):
     if user is None:
         if not user_obj.is_active and user_obj.check_password(password):
             try:
-                upline = user_obj.upline_rmd
-                if upline and upline.can_receive_requests and upline.email:
-                    recipient_emails = [upline.email]
+                full_name = f"{user_obj.first_name} {user_obj.last_name}".strip() or user_obj.username
+                admin_emails = list(
+                    CustomUser.objects.filter(
+                        Q(is_staff=True) | Q(role='Admin')
+                    ).exclude(email='').exclude(pk=user_obj.pk).values_list('email', flat=True)
+                )
+                # Admins always notify all other admins directly
+                if user_obj.is_staff or user_obj.role == 'Admin':
+                    recipient_emails = admin_emails
                 else:
-                    recipient_emails = list(
-                        CustomUser.objects.filter(is_staff=True).exclude(email='').values_list('email', flat=True)
-                    )
+                    upline = user_obj.upline_rmd
+                    if upline and upline.can_receive_requests and upline.email:
+                        recipient_emails = [upline.email]
+                    else:
+                        recipient_emails = admin_emails
                 if recipient_emails:
-                    full_name = f"{user_obj.first_name} {user_obj.last_name}".strip() or user_obj.username
                     send_mail(
-                        subject="Deactivated Member Login Attempt",
+                        subject="Deactivated Account Login Attempt",
                         message=f"{full_name} (@{user_obj.username}) just tried to log in but their account is deactivated.\n\nIf this was intentional, you can reactivate their account from the panel.",
                         from_email=settings.DEFAULT_FROM_EMAIL,
                         recipient_list=recipient_emails,
