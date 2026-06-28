@@ -281,6 +281,8 @@ def setup_account(request):
     try:
         rmd_profile = RMDProfile.objects.get(hgi_code=pending_user.hgi_code, user__isnull=True)
         user.is_rmd_member = True
+        user.is_rmd = True
+        user.role = 'RMD'
         user.save()
         rmd_profile.user = user
         rmd_profile.save()
@@ -509,6 +511,8 @@ def rmd_profiles_list(request):
     user = CustomUser.objects.filter(hgi_code=hgi_code).first()
     if user:
         user.is_rmd_member = True
+        user.is_rmd = True
+        user.role = 'RMD'
         user.save()
 
     profile = RMDProfile.objects.create(
@@ -531,9 +535,11 @@ def rmd_profile_detail(request, pk):
         profile = RMDProfile.objects.get(pk=pk)
     except RMDProfile.DoesNotExist:
         return Response({'error': 'RMD profile not found.'}, status=status.HTTP_404_NOT_FOUND)
-    # Unlink the associated user's is_rmd_member flag before deleting
+    # Unlink the associated user's RMD flags before deleting
     if profile.user:
         profile.user.is_rmd_member = False
+        profile.user.is_rmd = False
+        profile.user.role = 'New Member'
         profile.user.save()
     profile.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
@@ -589,6 +595,8 @@ def change_user_role(request, pk):
         return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
     if is_rmd and not is_admin and user.upline_rmd != request.user:
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    if user.is_rmd_member:
+        return Response({'error': 'Role cannot be changed for RMD members. Remove them from the RMD list first.'}, status=status.HTTP_400_BAD_REQUEST)
     role = request.data.get('role')
     valid_roles = [r[0] for r in CustomUser.ROLE_CHOICES]
     if role not in valid_roles:
