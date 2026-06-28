@@ -309,7 +309,7 @@ def setup_account(request):
 def pending_users_list(request):
     if not (request.user.is_staff or request.user.role == 'Admin'):
         return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
-    pending = PendingUser.objects.all().order_by('-created_at')
+    pending = PendingUser.objects.select_related('upline_rmd').all().order_by('-created_at')
     data = [
         {
             'id': p.id,
@@ -319,6 +319,11 @@ def pending_users_list(request):
             'hgi_code': p.hgi_code,
             'is_approved': p.is_approved,
             'created_at': p.created_at,
+            'upline_rmd_name': (
+                f"{p.upline_rmd.first_name} {p.upline_rmd.last_name}".strip() or p.upline_rmd.username
+                if p.upline_rmd else None
+            ),
+            'upline_rmd_has_direct_access': p.upline_rmd.can_receive_requests if p.upline_rmd else False,
         }
         for p in pending
     ]
