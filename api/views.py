@@ -119,6 +119,7 @@ def login_view(request):
         'role': user.role,
         'is_rmd_member': user.is_rmd_member,
         'can_receive_requests': user.can_receive_requests,
+        'granted_pages': user.granted_pages,
         'first_name': user.first_name,
         'last_name': user.last_name,
         'username': user.username,
@@ -684,6 +685,28 @@ def hgi_codes_list(request):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PATCH'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def grant_pages(request, pk):
+    is_admin = request.user.is_staff or request.user.role == 'Admin'
+    is_direct_rmd = request.user.is_rmd_member and request.user.can_receive_requests
+    if not (is_admin or is_direct_rmd):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        user = CustomUser.objects.get(pk=pk)
+    except CustomUser.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if user.is_staff or user.role in ('Admin', 'RMD') or user.is_rmd_member:
+        return Response({'error': 'Cannot grant additional pages to this user.'}, status=status.HTTP_400_BAD_REQUEST)
+    pages = request.data.get('granted_pages', [])
+    if not isinstance(pages, list):
+        return Response({'error': 'granted_pages must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
+    user.granted_pages = pages
+    user.save()
+    return Response({'granted_pages': user.granted_pages})
 
 
 @api_view(['GET'])
