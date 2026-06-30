@@ -16,6 +16,7 @@ urlpatterns = [
     path('verify-reset-token/<str:token>/', views.verify_reset_token),
     path('reset-password/', views.reset_password),
     path('logout/', views.logout_view),
+    path('me/', views.me_view),
     path('users/', views.user_list),
     path('pending-users/', views.pending_users_list),
     path('pending-users/<int:pk>/', views.pending_user_detail),

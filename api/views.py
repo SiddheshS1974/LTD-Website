@@ -486,6 +486,13 @@ def reset_password(request):
     return Response({'message': 'Password reset successfully!'}, status=status.HTTP_200_OK)
 
 
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def me_view(request):
+    return Response({'granted_pages': request.user.granted_pages})
+
+
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
