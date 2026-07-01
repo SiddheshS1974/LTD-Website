@@ -742,19 +742,10 @@ _GOOGLE_EXPORT_MAP = {
     'application/vnd.google-apps.spreadsheet': 'application/pdf',
 }
 
-@api_view(['GET'])
-@authentication_classes([TokenAuthentication])
-@permission_classes([IsAuthenticated])
-def file_proxy(request, pk):
-    try:
-        protected_file = ProtectedFile.objects.get(pk=pk)
-    except ProtectedFile.DoesNotExist:
-        return Response({'error': 'File not found.'}, status=status.HTTP_404_NOT_FOUND)
-
+def _stream_drive_file(protected_file):
     sa_json = getattr(settings, 'GOOGLE_SERVICE_ACCOUNT_JSON', '')
     if not sa_json:
         return Response({'error': 'File service not configured.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
     try:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
@@ -795,6 +786,28 @@ def file_proxy(request, pk):
     except Exception as e:
         print(f"Drive proxy error: {e}")
         return Response({'error': 'Failed to retrieve file.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def file_proxy(request, pk):
+    try:
+        protected_file = ProtectedFile.objects.get(pk=pk)
+    except ProtectedFile.DoesNotExist:
+        return Response({'error': 'File not found.'}, status=status.HTTP_404_NOT_FOUND)
+    return _stream_drive_file(protected_file)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def file_stream_by_slug(request, slug):
+    try:
+        protected_file = ProtectedFile.objects.get(slug=slug)
+    except ProtectedFile.DoesNotExist:
+        return Response({'error': 'File not found.'}, status=status.HTTP_404_NOT_FOUND)
+    return _stream_drive_file(protected_file)
 
 
 @api_view(['PATCH', 'DELETE'])

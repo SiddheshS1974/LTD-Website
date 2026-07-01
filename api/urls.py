@@ -34,4 +34,5 @@ urlpatterns = [
     path('hgi-codes/<int:pk>/', views.hgi_code_detail),
     path('files/', views.file_list),
     path('files/<int:pk>/stream/', views.file_proxy),
+    path('files/<slug:slug>/stream/', views.file_stream_by_slug),
 ]

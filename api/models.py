@@ -49,6 +49,7 @@ class ProtectedFile(models.Model):
     drive_file_id = models.CharField(max_length=200)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True, default='')
+    slug = models.SlugField(max_length=100, unique=True, null=True, blank=True)
 
     def __str__(self):
         return self.title

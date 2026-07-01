@@ -38,7 +38,7 @@ class ValidHGICodeSerializer(serializers.ModelSerializer):
 class ProtectedFileSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProtectedFile
-        fields = ['id', 'title', 'description']
+        fields = ['id', 'title', 'description', 'slug']
 
 
 class RMDProfileSerializer(serializers.ModelSerializer):
