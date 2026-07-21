@@ -775,16 +775,20 @@ def _stream_drive_file(protected_file):
             fileId=file_id, fields='mimeType,name'
         ).execute()
         mime_type = file_meta['mimeType']
+        print(f"Drive proxy debug: slug={protected_file.slug!r} drive_file_id={file_id!r} mime_type={mime_type!r}")
 
         temp_copy_id = None
         if mime_type in _OFFICE_CONVERT_MAP:
             target_mime = _OFFICE_CONVERT_MAP[mime_type]
             copy = service.files().copy(
-                fileId=file_id, body={'mimeType': target_mime}
+                fileId=file_id, body={'mimeType': target_mime}, fields='id,mimeType'
             ).execute()
+            print(f"Drive proxy debug: copy result={copy!r}")
             temp_copy_id = copy['id']
             file_id = temp_copy_id
-            mime_type = target_mime
+            mime_type = copy.get('mimeType', target_mime)
+        else:
+            print(f"Drive proxy debug: mime_type not in office convert map, skipping conversion")
 
         try:
             buffer = io.BytesIO()
