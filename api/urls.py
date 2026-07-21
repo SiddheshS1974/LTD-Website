@@ -28,6 +28,7 @@ urlpatterns = [
     path('users/<int:pk>/toggle-active/', views.toggle_active),
     path('users/<int:pk>/toggle-requests/', views.toggle_requests),
     path('users/<int:pk>/grant-pages/', views.grant_pages),
+    path('users/<int:pk>/grant-certifications/', views.grant_certifications),
     path('rmd/members/', views.rmd_member_list),
     path('rmd/pending/', views.rmd_pending_list),
     path('hgi-codes/', views.hgi_codes_list),

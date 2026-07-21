@@ -120,6 +120,7 @@ def login_view(request):
         'is_rmd_member': user.is_rmd_member,
         'can_receive_requests': user.can_receive_requests,
         'granted_pages': user.granted_pages,
+        'certifications': user.certifications,
         'first_name': user.first_name,
         'last_name': user.last_name,
         'username': user.username,
@@ -490,7 +491,10 @@ def reset_password(request):
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def me_view(request):
-    return Response({'granted_pages': request.user.granted_pages})
+    return Response({
+        'granted_pages': request.user.granted_pages,
+        'certifications': request.user.certifications,
+    })
 
 
 @api_view(['POST'])
@@ -714,6 +718,28 @@ def grant_pages(request, pk):
     user.granted_pages = pages
     user.save()
     return Response({'granted_pages': user.granted_pages})
+
+
+@api_view(['PATCH'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def grant_certifications(request, pk):
+    is_admin = request.user.is_staff or request.user.role == 'Admin'
+    is_direct_rmd = request.user.is_rmd_member and request.user.can_receive_requests
+    if not (is_admin or is_direct_rmd):
+        return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        user = CustomUser.objects.get(pk=pk)
+    except CustomUser.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if user.is_staff or user.role in ('Admin', 'RMD') or user.is_rmd_member:
+        return Response({'error': 'Cannot grant certifications to this user.'}, status=status.HTTP_400_BAD_REQUEST)
+    certifications = request.data.get('certifications', [])
+    if not isinstance(certifications, list):
+        return Response({'error': 'certifications must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
+    user.certifications = certifications
+    user.save()
+    return Response({'certifications': user.certifications})
 
 
 @api_view(['GET'])
