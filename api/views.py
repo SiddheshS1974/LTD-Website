@@ -742,19 +742,6 @@ _GOOGLE_EXPORT_MAP = {
     'application/vnd.google-apps.spreadsheet': 'application/pdf',
 }
 
-# Uploaded Office files aren't natively exportable — convert them to the matching
-# Google Workspace type first so they fall through to the PDF export above,
-# instead of streaming down as raw .docx/.xlsx/.pptx (which browsers can't preview
-# and just download).
-_OFFICE_CONVERT_MAP = {
-    'application/msword': 'application/vnd.google-apps.document',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'application/vnd.google-apps.document',
-    'application/vnd.ms-excel': 'application/vnd.google-apps.spreadsheet',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'application/vnd.google-apps.spreadsheet',
-    'application/vnd.ms-powerpoint': 'application/vnd.google-apps.presentation',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'application/vnd.google-apps.presentation',
-}
-
 def _stream_drive_file(protected_file):
     sa_json = getattr(settings, 'GOOGLE_SERVICE_ACCOUNT_JSON', '')
     if not sa_json:
@@ -766,7 +753,7 @@ def _stream_drive_file(protected_file):
 
         creds = service_account.Credentials.from_service_account_info(
             json.loads(sa_json),
-            scopes=['https://www.googleapis.com/auth/drive'],
+            scopes=['https://www.googleapis.com/auth/drive.readonly'],
         )
         service = build('drive', 'v3', credentials=creds)
 
@@ -775,48 +762,27 @@ def _stream_drive_file(protected_file):
             fileId=file_id, fields='mimeType,name'
         ).execute()
         mime_type = file_meta['mimeType']
-        print(f"Drive proxy debug: slug={protected_file.slug!r} drive_file_id={file_id!r} mime_type={mime_type!r}")
 
-        temp_copy_id = None
-        if mime_type in _OFFICE_CONVERT_MAP:
-            target_mime = _OFFICE_CONVERT_MAP[mime_type]
-            copy = service.files().copy(
-                fileId=file_id, body={'mimeType': target_mime}, fields='id,mimeType'
-            ).execute()
-            print(f"Drive proxy debug: copy result={copy!r}")
-            temp_copy_id = copy['id']
-            file_id = temp_copy_id
-            mime_type = copy.get('mimeType', target_mime)
+        buffer = io.BytesIO()
+        if mime_type in _GOOGLE_EXPORT_MAP:
+            export_mime = _GOOGLE_EXPORT_MAP[mime_type]
+            req = service.files().export_media(
+                fileId=file_id, mimeType=export_mime
+            )
+            response_mime = export_mime
         else:
-            print(f"Drive proxy debug: mime_type not in office convert map, skipping conversion")
+            req = service.files().get_media(fileId=file_id)
+            response_mime = mime_type
 
-        try:
-            buffer = io.BytesIO()
-            if mime_type in _GOOGLE_EXPORT_MAP:
-                export_mime = _GOOGLE_EXPORT_MAP[mime_type]
-                req = service.files().export_media(
-                    fileId=file_id, mimeType=export_mime
-                )
-                response_mime = export_mime
-            else:
-                req = service.files().get_media(fileId=file_id)
-                response_mime = mime_type
+        downloader = MediaIoBaseDownload(buffer, req)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
 
-            downloader = MediaIoBaseDownload(buffer, req)
-            done = False
-            while not done:
-                _, done = downloader.next_chunk()
-
-            buffer.seek(0)
-            http_response = HttpResponse(buffer.read(), content_type=response_mime)
-            http_response['Content-Disposition'] = f'inline; filename="{protected_file.title}"'
-            return http_response
-        finally:
-            if temp_copy_id:
-                try:
-                    service.files().delete(fileId=temp_copy_id).execute()
-                except Exception:
-                    pass
+        buffer.seek(0)
+        http_response = HttpResponse(buffer.read(), content_type=response_mime)
+        http_response['Content-Disposition'] = f'inline; filename="{protected_file.title}"'
+        return http_response
 
     except Exception as e:
         print(f"Drive proxy error: {e}")
